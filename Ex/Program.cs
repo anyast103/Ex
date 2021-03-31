@@ -1,91 +1,103 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Ex
 {
     class Program
     {
-        public static string[] information = File.ReadAllLines("tsk.txt"); // Получаем массив строк из файла.
         static void Main(string[] args)
         {
-            new Person();
-            new Salaries();
-            Console.WriteLine("Среднее арифметическое зарплаты всех сотрудников, которые не являются директорами: " + Salaries.sal);
+            DataReader.GetPerson();
+            WorkPlace.GetWorkPlaceInfo();
+            
+        }
+    }
+    class DataReader
+    {
+        public static string[] information { get; private set; } = File.ReadAllLines("tsk.txt");
+
+        public static List<Person> person = new List<Person>();
+
+        public static void GetPerson()
+        {
+            foreach(var employee in information)
+            {
+                person.Add(new Person(employee.Split(';'), new WorkPlace(employee.Split(';')[1])));
+            }
         }
     }
     class Person
     {
-        public static List<List<string>> allPeople = new List<List<string>>(); // Скидываем сюда ВСЮ информацию о каждом человеке,
-        // при этом список будет содержать ещё списоки, в которые либо 3, либо 4 элемента. ФИО, Цех, зарплата, директор или нет.
+        public string Name { get; private set; }
+        public WorkPlace Work { get; private set; }
+        public int Salary { get; private set; }
+        public bool IsHead { get; private set; } = false;
+
+        public Person(string[] inforamtion, WorkPlace work)
+        {
+            Name = inforamtion[0];
+            Work = work;
+            Salary = int.Parse(inforamtion[2]);
+            if (inforamtion.Length == 4)
+                IsHead = Convert.ToBoolean(inforamtion[3]);
+            else IsHead = false;
+        }
+    }
+    class WorkPlace
+    {
+        public string workName { get; private set; }
         
-        public static List<string> otherPeople = new List<string>(); // Сюда скидываем оставшихся людей, которые не являются
-        // директорами
-        private static int directors { get; set; } // Ведём подсчёт количества директоров
+        public WorkPlace(string work)
+        {
+            workName = work;
+        }
 
-        // Поиск директоров и их количества отношу к классу Person, так как это основной критерий.
-        // Зарплату выношу в отельный класс, это касается уже просто денег.
-
-        public Person()
+        public static void GetWorkPlaceInfo()
         {
-            GetInfo();
-            DirectorOrNot();
-            CountDirectors();
-        }
-        private static void GetInfo()
-        {
-            foreach (string i in Program.information)
+            var groupOfemployees = DataReader.person.GroupBy(e => e.Work.workName, (key, g) => 
+            new { Key = key, Value = g.Count(f => f.IsHead == true) }).OrderBy(c => c.Key);
+            foreach (var employee in groupOfemployees)
             {
-                List<string> onePerson = new List<string>();
-                onePerson.AddRange(i.Split(';'));
-                allPeople.Add(onePerson); 
+                if (employee.Value < 1 || employee.Value > 2)
+                    throw new Exception("Ошибка!");
             }
-        }
-        private static void DirectorOrNot()
-        {
-            foreach(var i in allPeople)
-            {
-                if(i.Contains("true")) // Если элемент списка списков (то есть еще один список включает в себя поле true,
-                    // добавляем единичку к переменной подсчёта директоров.
-                {
-                    directors++;
-                }
-                else // Иначе кидаем в список простых рабочих.
-                {
-                    otherPeople.AddRange(i);
-                }
-            }
-        }
-        private static void CountDirectors()
-        {
-            if(directors > 2 || directors < 1) // Если директоров больше чем два, или их нет вообще, кидаем экспшен.
-            {
-                throw new Exception("Информация некорректна.");
-            }
+            Salaries.GetSalaries();
+            Salaries.GetTheRichestHead();
         }
     }
     class Salaries
     {
-        public static int sal { get; private set; } // Кидаем сюда подсчитанную з.п
-        public Salaries()
+        public static void GetSalaries()
         {
-            CalcTheAverageSal();
-        }
-        private static int CalcTheAverageSal()
-        {
-            foreach(var i in Person.allPeople)
-            {
-                if(!i.Contains("true")) // выбираем людей, которые НЕ директора.
-                {
-                    for(int index = 0; index < i.Count; index++)
-                    {
-                        sal += int.Parse(i[2]); // тянем из списка зарплаты, складываем.
-                    }
-                    return sal/i.Count; // Вычисляем среднее значение.
-                }
-            }
-            return sal;
-        }
 
+            var groupOfEmployees = DataReader.person.GroupBy(e => e.Work.workName,
+                (key, g) => new { Key = key, Value = g.Where(g => g.IsHead == false) }
+                );
+            foreach (var employee in groupOfEmployees)
+            {
+                double salary = employee.Value.Average(f => f.Salary);
+                Console.WriteLine($"Средняя зарплата по {employee.Key}: " + salary);
+            }
+        }
+        public static void GetTheRichestHead()
+        {
+            var groupOfHeads = DataReader.person.GroupBy(e => e.Work.workName,
+                (key, g) => new { Key = key, Value = g.Where(g => g.IsHead == true) }
+                );
+            List<double> headSalaries = new List<double>();
+            foreach (var head in groupOfHeads)
+            {
+                headSalaries.Add(head.Value.Max(f => f.Salary));
+            }
+            var richest = headSalaries.Max();
+            Console.WriteLine($"Cамая высокая зарплата руководителя: " + richest);
+        }
     }
+    
 }
+                
+            
+    
+
